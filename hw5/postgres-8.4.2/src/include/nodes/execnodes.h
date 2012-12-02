@@ -1501,7 +1501,7 @@ typedef struct ApproxTopEntry
 {
 	MinimalTuple tuple;  /* The Tuple */
 	/* CS186-TODO: Add any other fields you want here */
-
+        uint32 count;
 } ApproxTopEntry;
 
 typedef struct AggState
@@ -1530,6 +1530,9 @@ typedef struct AggState
 	TupleTableSlot *tempslot;  /* slot used for transferring temp data */
 
 	/* CS186-TODO: Add any extra fields you need in AggState here */
+        cmsketch* sketch;
+        ApproxTopEntry *topK;
+        uint32 iterPos;
 } AggState;
 
 /* ----------------
