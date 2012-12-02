@@ -1401,7 +1401,14 @@ approx_agg_init(AggState *aggstate)
 	/*
 	 * CS186-TODO: allocate any structures inside of aggstate that you will need.
 	 */
-	
+	aggstate->sketch = (cmsketch *)init_sketch(agg->cm_width,agg->cm_depth);
+        aggstate->topK = (ApproxTopEntry *)palloc(sizeof(ApproxTopEntry) * agg->approx_nkeep);
+        for(i=0;i<agg->approx_nkeep;i++){
+            aggstate->topK[i].tuple = NULL;
+            aggstate->topK[i].count = 0;
+        }
+        aggstate->iterPos = 0;
+        
 	approx_agg_reset_iter(aggstate);
 
 	MemoryContextSwitchTo(old_cxt);
@@ -1462,7 +1469,48 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
 	/*
 	 * CS186-TODO: Implement your function to process each input tuple.
 	 */
+    int flag;
+    uint32 *hashes;
+    uint32 count, i,k;
+    ApproxTopEntry *entry, temp;
+    flag = -1;
+    
+    entry = (ApproxTopEntry *)palloc(sizeof(ApproxTopEntry));
+    set_approx_top_entry_from_slot(outerSlot, entry);
+    
+    hashes = (uint32 *)palloc(sizeof(uint32) * agg->cm_depth);
+    getTupleHashBits(aggstate, outerSlot, hashes,
+		agg->cm_width, agg->cm_depth);
+    increment_bits(aggstate->sketch, hashes);
+    count = estimate(aggstate->sketch, hashes);
 
+    for(i=0;i<agg->approx_nkeep;i++){
+        if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
+            aggstate->topK[i].count = count;
+            flag = 1;
+            break;
+        }
+    }
+    // element is not our topK
+    if (flag == -1){
+        for(i=0;i<agg->approx_nkeep;i++){
+            if (entry->count > aggstate->topK[i].count){
+                // if this is last element just put it at the end
+                if (i==agg->approx_nkeep){
+                    aggstate->topK[i] = *entry;
+                }
+                else{
+                    k = i;
+                    do{
+                        temp = aggstate->topK[k+1];
+                        aggstate->topK[k+1] = aggstate->topK[k];
+                        k++;
+                    } while(k < agg->approx_nkeep-1);
+                }
+                aggstate->topK[i] = *entry;
+            }
+        }
+    }
 }
 
 
@@ -1476,7 +1524,7 @@ approx_agg_reset_iter(AggState *aggstate)
 	/*
 	 * CS186-TODO: Any code to reset the aggstate for your approx function should go here.
 	 */
- 	
+    aggstate->iterPos = 0;
 }
 
 /* 
@@ -1541,7 +1589,7 @@ agg_retrieve_cmsketch(AggState *aggstate)
 		ExecStoreMinimalTuple(tuple->tuple, firstSlot, false);
 
 		old_cxt = MemoryContextSwitchTo(tmp_cxt);
-		aggvalues[0] = Int64GetDatum(0 /* CS186-TODO: Set the count for this group here */);
+		aggvalues[0] = Int64GetDatum(tuple->count /* CS186-TODO: Set the count for this group here */);
 
 		/* Our agg values are never null */
 		aggnulls[0] = false;
@@ -1581,7 +1629,12 @@ approx_agg_advance_iter(AggState *aggstate, Agg* agg)
 	 * CS186-TODO: You will need to implement this function to walk over
 	 * the data structure you have written to keep track of frequencies.
 	 */
-    return NULL;
+    uint pos;
+    pos = aggstate->iterPos;
+    if (pos == agg->approx_nkeep)
+        return NULL;
+    aggstate->iterPos++;
+    return &aggstate->topK[pos];
 }
 
 
