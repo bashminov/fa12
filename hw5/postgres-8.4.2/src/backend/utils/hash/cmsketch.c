@@ -11,7 +11,7 @@
 /* initialize the count-min sketch for the specified width and depth */
 cmsketch* init_sketch(uint32 width, uint32 depth) {
     struct cmsketch *ret;
-    uint32_t i,j;
+    uint32 i,j;
     ret = (cmsketch*)palloc(sizeof(cmsketch));
     if (ret == NULL)
         return NULL;
@@ -31,7 +31,7 @@ cmsketch* init_sketch(uint32 width, uint32 depth) {
  *    Thus, each index is between 0 and 'width', and there are 'depth' of them.
  */
 void increment_bits(cmsketch* sketch, uint32 *bits) {
-    uint32_t i;
+    uint32 i;
     for(i=0;i<sketch->depth;i++)
         sketch->array[i][bits[i]]++;
 }
@@ -41,7 +41,7 @@ void increment_bits(cmsketch* sketch, uint32 *bits) {
  *    Thus, each index is between 0 and 'width', and there are 'depth' of them.
  */
 void decrement_bits(cmsketch* sketch, uint32 *bits) {
-    uint32_t i;
+    uint32 i;
     for(i=0;i<sketch->depth;i++)
         sketch->array[i][bits[i]]--;
 }
