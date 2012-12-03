@@ -12,14 +12,14 @@
 cmsketch* init_sketch(uint32 width, uint32 depth) {
     struct cmsketch *ret;
     uint32 i,j;
-    ret = (cmsketch*)palloc(sizeof(cmsketch));
+    ret = palloc0(sizeof(cmsketch));
     if (ret == NULL)
         return NULL;
     ret->depth = depth;
     ret->width = width;
-    ret->array = palloc(sizeof(uint32_t *) * depth);
+    ret->array = palloc0(sizeof(uint32) * depth);
     for(i=0;i<depth;i++)
-        ret->array[i] = palloc(sizeof(uint32_t) * width);
+        ret->array[i] = palloc0(sizeof(uint32) * width);
     for(i=0; i<depth;i++)
         for(j=0;j<width;j++)
             ret->array[i][j] = 0;
@@ -46,7 +46,7 @@ void decrement_bits(cmsketch* sketch, uint32 *bits) {
         sketch->array[i][bits[i]]--;
 }
 
-/* return the minimum among the indicies pointed to by 'bits'
+/* return the minimum among the indices pointed to by 'bits'
  * 'bits' is an array of indices into each row of the sketch.
  *    Thus, each index is between 0 and 'width', and there are 'depth' of them.
  */
@@ -71,7 +71,7 @@ void reset_sketch(cmsketch* sketch) {
 
 /* destroy the sketch, freeing any memory it might be using */
 void destroy_sketch(cmsketch* sketch) {
-    int i;
+    uint32 i;
     for(i=0;i<sketch->depth;i++)
         pfree(sketch->array[i]);
     pfree(sketch->array);
