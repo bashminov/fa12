@@ -1485,7 +1485,10 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
     count = estimate(aggstate->sketch, hashes);
 
     for(i=0;i<agg->approx_nkeep;i++){
-        if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
+        if(aggstate->topK[i] == NULL){
+            break;
+        }
+        else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
             aggstate->topK[i].count = count;
             flag = 1;
             break;
@@ -1493,11 +1496,21 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
     }
     // element is not our topK
     if (flag == -1){
+        // let's look for an appropiate spot
         for(i=0;i<agg->approx_nkeep;i++){
-            if (entry->count > aggstate->topK[i].count){
+            // if topK is not full and current element is smallest
+            if(aggstate->topK[i] == NULL){
+                aggstate->topK[i] = *entry;
+                break;
+            }
+            // if we found that entry belongs somewhere inside topK
+            // shift everything by one, possibly dropping the last element
+            else if (entry->count > aggstate->topK[i].count){
                 // if this is last element just put it at the end
+                // overwriting previous last element 
                 if (i==agg->approx_nkeep){
                     aggstate->topK[i] = *entry;
+                    break;
                 }
                 else{
                     k = i;
@@ -1508,6 +1521,7 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
                     } while(k < agg->approx_nkeep-1);
                 }
                 aggstate->topK[i] = *entry;
+                break;
             }
         }
     }
