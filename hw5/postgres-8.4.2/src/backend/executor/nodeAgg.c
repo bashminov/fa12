@@ -1452,9 +1452,9 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg) {
             agg->cm_width, agg->cm_depth);
     increment_bits(aggstate->sketch, hashes);
     count = estimate(aggstate->sketch, hashes);
-
-    for (i = 0; i < agg->approx_nkeep; i++) {
-        if (aggstate->topK[i].tuple == NULL) {
+/////////////////////////////////////////////////////
+    for(i=0;i<agg->approx_nkeep;i++){
+        if(aggstate->topK[i].tuple == 0){
             break;
         } else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)) {
             aggstate->topK[i].count = count;
@@ -1491,6 +1491,8 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg) {
             }
         }
     }
+    pfree(entry);
+    pfree(hashes);
 }
 
 /*
