@@ -1485,7 +1485,7 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
     count = estimate(aggstate->sketch, hashes);
 
     for(i=0;i<agg->approx_nkeep;i++){
-        if(aggstate->topK[i] == NULL){
+        if(aggstate->topK[i].tuple == NULL){
             break;
         }
         else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
@@ -1499,7 +1499,7 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
         // let's look for an appropiate spot
         for(i=0;i<agg->approx_nkeep;i++){
             // if topK is not full and current element is smallest
-            if(aggstate->topK[i] == NULL){
+            if(aggstate->topK[i].tuple == NULL){
                 aggstate->topK[i] = *entry;
                 break;
             }
