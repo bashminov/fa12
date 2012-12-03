@@ -1394,19 +1394,21 @@ approx_agg_init(AggState *aggstate)
 	srand48(42);
 	for (i = 0; i < agg->cm_depth; ++i)
 	{
-		aggstate->a[i] = lrand48();
-        aggstate->b[i] = lrand48();
+	     aggstate->a[i] = lrand48();
+             aggstate->b[i] = lrand48();
 	}
 
 	/*
 	 * CS186-TODO: allocate any structures inside of aggstate that you will need.
 	 */
-	aggstate->sketch = (cmsketch *)init_sketch(agg->cm_width,agg->cm_depth);
-        aggstate->topK = (ApproxTopEntry *)palloc0(sizeof(ApproxTopEntry) * agg->approx_nkeep);
-        /*for(i=0;i<agg->approx_nkeep;i++){
+	aggstate->sketch = init_sketch(agg->cm_width,agg->cm_depth);
+        aggstate->topK = palloc0(sizeof(ApproxTopEntry) * agg->approx_nkeep);
+        for(i=0;i<agg->approx_nkeep;i++){
             aggstate->topK[i].tuple = NULL;
             aggstate->topK[i].count = 0;
-        }*/
+        }
+        
+        aggstate->iterPos = 0;
         
 	approx_agg_reset_iter(aggstate);
 
@@ -1474,17 +1476,19 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
     ApproxTopEntry *entry, temp;
     flag = -1;
     
-    entry = (ApproxTopEntry *)palloc(sizeof(ApproxTopEntry));
+    entry = palloc0(sizeof(ApproxTopEntry));
     set_approx_top_entry_from_slot(outerSlot, entry);
     
-    hashes = (uint32 *)palloc0(sizeof(uint32) * agg->cm_depth);
+    hashes = palloc0(sizeof(uint32) * agg->cm_depth);
     getTupleHashBits(aggstate, outerSlot, hashes,
 		agg->cm_width, agg->cm_depth);
     increment_bits(aggstate->sketch, hashes);
     count = estimate(aggstate->sketch, hashes);
+    entry->count = count;
 /////////////////////////////////////////////////////
+    
     for(i=0;i<agg->approx_nkeep;i++){
-        if(aggstate->topK[i].tuple == 0){
+        if(aggstate->topK[i].tuple == NULL){
             break;
         }
         else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
@@ -1498,27 +1502,23 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
         // let's look for an appropiate spot
         for(i=0;i<agg->approx_nkeep;i++){
             // if topK is not full and current element is smallest
-            if(aggstate->topK[i].tuple == 0){
+            if (aggstate->topK[i].tuple == NULL){
                 aggstate->topK[i] = *entry;
                 break;
             }
             // if we found that entry belongs somewhere inside topK
             // shift everything by one, possibly dropping the last element
-            else if (entry->count > aggstate->topK[i].count){
+            else if (count > aggstate->topK[i].count){
+                // elog(LOG,"entry count %u topK entry count %u", entry->count, aggstate->topK[i].count );
                 // if this is last element just put it at the end
                 // overwriting previous last element 
-                if (i==agg->approx_nkeep){
-                    aggstate->topK[i] = *entry;
-                    break;
-                }
-                else{
                     k = i;
                     do{
                         temp = aggstate->topK[k+1];
                         aggstate->topK[k+1] = aggstate->topK[k];
                         k++;
                     } while(k < agg->approx_nkeep-1);
-                }
+                // }
                 aggstate->topK[i] = *entry;
                 break;
             }
@@ -1646,7 +1646,7 @@ approx_agg_advance_iter(AggState *aggstate, Agg* agg)
 	 */
     uint32 pos;
     pos = aggstate->iterPos;
-    if (pos == agg->approx_nkeep)
+    if (pos == agg->approx_nkeep || aggstate->topK[pos].count <= 0)
         return NULL;
     aggstate->iterPos++;
     return &aggstate->topK[pos];
