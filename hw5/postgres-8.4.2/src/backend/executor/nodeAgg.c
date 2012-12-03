@@ -1402,12 +1402,11 @@ approx_agg_init(AggState *aggstate)
 	 * CS186-TODO: allocate any structures inside of aggstate that you will need.
 	 */
 	aggstate->sketch = (cmsketch *)init_sketch(agg->cm_width,agg->cm_depth);
-        aggstate->topK = (ApproxTopEntry *)palloc(sizeof(ApproxTopEntry) * agg->approx_nkeep);
-        for(i=0;i<agg->approx_nkeep;i++){
+        aggstate->topK = (ApproxTopEntry *)palloc0(sizeof(ApproxTopEntry) * agg->approx_nkeep);
+        /*for(i=0;i<agg->approx_nkeep;i++){
             aggstate->topK[i].tuple = NULL;
             aggstate->topK[i].count = 0;
-        }
-        aggstate->iterPos = 0;
+        }*/
         
 	approx_agg_reset_iter(aggstate);
 
@@ -1455,7 +1454,7 @@ approx_agg_fill_cmsketch(AggState *aggstate)
 	    approx_agg_per_input(aggstate, outerslot, agg);
 	    MemoryContextSwitchTo(old_cxt);
 	}
-
+        
 	aggstate->table_filled = true;
 }
 
@@ -1478,14 +1477,14 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
     entry = (ApproxTopEntry *)palloc(sizeof(ApproxTopEntry));
     set_approx_top_entry_from_slot(outerSlot, entry);
     
-    hashes = (uint32 *)palloc(sizeof(uint32) * agg->cm_depth);
+    hashes = (uint32 *)palloc0(sizeof(uint32) * agg->cm_depth);
     getTupleHashBits(aggstate, outerSlot, hashes,
 		agg->cm_width, agg->cm_depth);
     increment_bits(aggstate->sketch, hashes);
     count = estimate(aggstate->sketch, hashes);
-
+/////////////////////////////////////////////////////
     for(i=0;i<agg->approx_nkeep;i++){
-        if(aggstate->topK[i].tuple == NULL){
+        if(aggstate->topK[i].tuple == 0){
             break;
         }
         else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)){
@@ -1499,7 +1498,7 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
         // let's look for an appropiate spot
         for(i=0;i<agg->approx_nkeep;i++){
             // if topK is not full and current element is smallest
-            if(aggstate->topK[i].tuple == NULL){
+            if(aggstate->topK[i].tuple == 0){
                 aggstate->topK[i] = *entry;
                 break;
             }
@@ -1525,6 +1524,8 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg)
             }
         }
     }
+    pfree(entry);
+    pfree(hashes);
 }
 
 
@@ -1643,7 +1644,7 @@ approx_agg_advance_iter(AggState *aggstate, Agg* agg)
 	 * CS186-TODO: You will need to implement this function to walk over
 	 * the data structure you have written to keep track of frequencies.
 	 */
-    uint pos;
+    uint32 pos;
     pos = aggstate->iterPos;
     if (pos == agg->approx_nkeep)
         return NULL;
