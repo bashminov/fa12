@@ -1381,7 +1381,7 @@ approx_agg_init(AggState *aggstate) {
             aggstate->topK[i].count = 0;
         }
         
-        aggstate->iterPos = 0;
+        // aggstate->iterPos = 0;
         
 	approx_agg_reset_iter(aggstate);
 
@@ -1459,28 +1459,44 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg) {
     
     for(i=0;i<agg->approx_nkeep;i++){
         if(aggstate->topK[i].tuple == NULL){
+            flag = 1;
             break;
         } else if (compare_tuple_with_approx_top_tuple(outerSlot, &aggstate->topK[i], aggstate, agg)) {
             aggstate->topK[i].count = count;
-            flag = 1;
-            break;
+            return;
         }
     }
     // element is not our topK
-    if (flag == -1) {
         // let's look for an appropiate spot
         for (i = 0; i < agg->approx_nkeep; i++) {
             // if topK is not full and current element is smallest
             if (aggstate->topK[i].tuple == NULL){
+                elog(LOG,"insert elem with count %u at %u", entry->count,i);
                 aggstate->topK[i] = *entry;
-                break;
+                // aggstate->size++;
+                return;
             }
             // if we found that entry belongs somewhere inside topK
             // shift everything by one, possibly dropping the last element
-            else if (count > aggstate->topK[i].count){
+            else if (flag == 1){
+                if (count > aggstate->topK[i].count){
+                    k = i;
+                        do {
+                            temp = aggstate->topK[k + 1];
+                            aggstate->topK[k + 1] = aggstate->topK[k];
+                            k++;
+                        } while(k < agg->approx_nkeep-1);
+                    // }
+                    //elog(LOG,"insert and moved elem with count %u at %u and topK.count %u", entry->count,i,aggstate->topK[i].count);
+                    aggstate->topK[i] = *entry;
+                    return;
+                }
+            }
+            else if (count >= aggstate->topK[i].count){
                 // elog(LOG,"entry count %u topK entry count %u", entry->count, aggstate->topK[i].count );
                 // if this is last element just put it at the end
                 // overwriting previous last element 
+                // aggstate->size++;
                     k = i;
                     do {
                         temp = aggstate->topK[k + 1];
@@ -1488,11 +1504,11 @@ approx_agg_per_input(AggState *aggstate, TupleTableSlot* outerSlot, Agg* agg) {
                         k++;
                     } while(k < agg->approx_nkeep-1);
                 // }
+                //elog(LOG,"insert and moved elem with count %u at %u and topK.count %u", entry->count,i,aggstate->topK[i].count);
                 aggstate->topK[i] = *entry;
-                break;
+                return;
             }
         }
-    }
     pfree(entry);
     pfree(hashes);
 }
@@ -1606,10 +1622,12 @@ approx_agg_advance_iter(AggState *aggstate, Agg* agg) {
      * CS186-TODO: You will need to implement this function to walk over
      * the data structure you have written to keep track of frequencies.
      */
+        
     uint pos;
     pos = aggstate->iterPos;
-    if (pos == agg->approx_nkeep || aggstate->topK[pos].count <= 0)
+    if (pos >= agg->approx_nkeep || aggstate->topK[pos].tuple == NULL)// || aggstate->topK[pos].count <= 0)
         return NULL;
+    elog(LOG,"count %u: ", aggstate->topK[pos].count);
     aggstate->iterPos++;
     return &aggstate->topK[pos];
 }
